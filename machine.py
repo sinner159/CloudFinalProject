@@ -16,10 +16,11 @@ class Machine():
         
 class Client(Machine):
 
-    def __init__(self, ip, interface, mac,name, capture=None, is_suspicious=False,is_attacker=False):
+    def __init__(self, ip, interface, mac,name,cookie, capture=None, is_suspicious=False,is_attacker=False):
         super().__init__(ip, interface, mac, name, capture)
         self.is_suspicious = is_suspicious
         self.is_attacker = is_attacker
+        self.cookie = cookie
 
 class Host(Machine):
     

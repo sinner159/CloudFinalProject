@@ -78,14 +78,15 @@ class FalseRealitySwitch(app_manager.RyuApp):
             interface = c['interface']
             mac = c['mac']
             name = c['name']
-            self.clients[mac] = (Client(ip, interface, mac, name))
+            cookie = c['cookie']
+            self.clients[mac] = (Client(ip, interface, mac, name,cookie))
 
     def add_flow(self, datapath, priority, match, actions,cookie=0, buffer_id=None):
         ofproto = datapath.ofproto
         parser: ofpParser = datapath.ofproto_parser
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
-                                             actions)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+
         if buffer_id:
             mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
                                     priority=priority, match=match,
@@ -101,12 +102,14 @@ class FalseRealitySwitch(app_manager.RyuApp):
     
     def periodically_migrate(self,):
         while True:
-            #sleep(30)
+            sleep(30)
             print("MIGRATING AT.....{}".format(time.ctime()))
+            for client in self.clients.values():
+                self.parser.OFPFlowMod(datapath=self.datapath,cookie=client.cookie,cookie_mask=-1,command=ofproto_v1_3.OFPFC_DELETE)
             self.migrator.migrate()  # 
             self.update_redirection_rules()
             print("\n\n\n")
-            sleep(10)
+            #sleep(10)
 
     #Priority = 5        
     def update_redirection_rules(self,):
@@ -211,31 +214,36 @@ class FalseRealitySwitch(app_manager.RyuApp):
             tcp_src = tcp_pkt.src_port
             tcp_dst = tcp_pkt.dst_port
 
-        if ip_dst == ovs_ip:
-            #tcp packets coming from current host
-            current_vm = self.migrator.getCurrentHost()
-            action_modify_headers = [
-                parser.OFPActionSetField(eth_dst=self.vms[current_vm]["mac"]),
-                parser.OFPActionSetField(ipv4_dst=self.vms[current_vm]["local_ip"]),
-                parser.OFPActionOutput(self.vms[current_vm]["ovs_port"])   
-            ]
-            
-            match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80)
-            self.add_flow(self.datapata,5, match, action_modify_headers,1)
+            if ip_dst == ovs_ip:
+                #tcp packets coming from current host
+                client = None
+                if mac_src in self.clients:
+                    client: Client = self.clients[mac_src]
+                if client is not None:
 
+                    current_vm = self.migrator.getCurrentHost()
+                    action_modify_headers = [
+                        parser.OFPActionSetField(eth_dst=self.vms[current_vm]["mac"]),
+                        parser.OFPActionSetField(ipv4_dst=self.vms[current_vm]["local_ip"]),
+                        parser.OFPActionOutput(self.vms[current_vm]["ovs_port"])   
+                    ]
+                    
+                    match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80,tcp_src=tcp_src)
+                    self.add_flow(self.datapata,5, match, action_modify_headers,client.cookie)
 
-            reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ip_src,ipv4_src=self.vms[current_vm]["local_ip"],tcp_dst=tcp_src)
-            
-            action_modify_headers_reverse = [
-                parser.OFPActionSetField(eth_src=ovs_mac),
-                parser.OFPActionSetField(ipv4_src=ovs_ip),
-                parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
-            ]
-            self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,2)
+                    reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ip_src,ipv4_src=self.vms[current_vm]["local_ip"],tcp_dst=tcp_src)
+                    
+                    action_modify_headers_reverse = [
+                        parser.OFPActionSetField(eth_src=ovs_mac),
+                        parser.OFPActionSetField(ipv4_src=ovs_ip),
+                        parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
+                    ]
 
-            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                  in_port=self.vms[current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
-            datapath.send_msg(out)
+                    self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,client.cookie)
+
+                    out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                        in_port=self.vms[current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
+                    datapath.send_msg(out)
 
        
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
@@ -246,7 +254,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
         self.ofproto = ofproto
         self.datapata=datapath
         self.parser: ofpParser = parser
-
+        self.parser.OFPFlowMod(datapath=self.datapath,command=ofproto_v1_3.OFPFC_DELETE)
         match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=1)
         actions = [parser.OFPActionOutput(ofproto.OFPP_NORMAL)]
         self.add_flow(datapath, 100, match, actions)
