@@ -55,6 +55,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
         self.migrator=Migrator()
         self.periodic_migrator_daemon = Thread(target=self.periodically_migrate, args=(), daemon=True, name='Background')
         self.periodic_migrator_daemon.start()
+        self.current_vm = "vm1"
 
     # def add_flow(self, dp: Datapath, match: ofpParser.OFPMatch, actions: list, priority=0, idle_timeout=300,  hard_timeout=0):
     #     ofproto = dp.ofproto
@@ -130,8 +131,8 @@ class FalseRealitySwitch(app_manager.RyuApp):
     def update_redirection_rules(self,):
         current_vm = self.migrator.getCurrentHost()
         parser = self.parser
-        
-            
+        self.delete_all_client_rules(self.datapath)
+        self.add_base_rules(self.datapath,self.datapath.ofproto_parser)
        
         return
     
@@ -197,29 +198,55 @@ class FalseRealitySwitch(app_manager.RyuApp):
                 if mac_src in self.clients:
                     client: Client = self.clients[mac_src]
                 if client is not None:
-                    self.delete_client_rules(datapath,client)
-                    current_vm = self.migrator.getCurrentHost()
-                    action_modify_headers = [
-                        parser.OFPActionSetField(eth_dst=self.vms[current_vm]["mac"]),
-                        parser.OFPActionSetField(ipv4_dst=self.vms[current_vm]["local_ip"]),
-                        parser.OFPActionOutput(self.vms[current_vm]["ovs_port"])   
-                    ]
                     
-                    match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80,tcp_src=tcp_src)
-                    self.add_flow(self.datapata,5, match, action_modify_headers,client.cookie)
+                    if self.current_vm != self.migrator.getCurrentHost():
+                        self.delete_client_rules(datapath,client)
+                    
+                    self.current_vm = self.migrator.getCurrentHost()
 
-                    reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ip_src,ipv4_src=self.vms[current_vm]["local_ip"],tcp_dst=tcp_src)
-                    
-                    action_modify_headers_reverse = [
-                        parser.OFPActionSetField(eth_src=ovs_mac),
+                    reverse_match = None
+                    if ip_src == "192.122.236.113" or ip_src == "10.10.1.8":
+                        action_modify_headers = [
+                        parser.OFPActionSetField(eth_dst=self.vms[self.current_vm]["mac"]),
+                        parser.OFPActionSetField(ipv4_dst=self.vms[self.current_vm]["local_ip"]),
                         parser.OFPActionSetField(ipv4_src=ovs_ip),
-                        parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
+                        parser.OFPActionOutput(self.vms[self.current_vm]["ovs_port"])   
                     ]
+                        
+                        match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80,tcp_src=tcp_src)
+                        self.add_flow(self.datapata,5, match, action_modify_headers,client.cookie)
 
-                    self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,client.cookie)
+                        reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ovs_ip,ipv4_src=self.vms[self.current_vm]["local_ip"],tcp_dst=tcp_src)
+                        action_modify_headers_reverse = [
+                            parser.OFPActionSetField(eth_src=ovs_mac),
+                            parser.OFPActionSetField(ipv4_src=ovs_ip),
+                            parser.OFPActionSetField(ipv4_dst=ip_src),
+                            parser.OFPActionSetField(eth_dst=mac_src),
+
+                            parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
+                        ]
+                        self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,client.cookie)
+                    else:
+                        action_modify_headers = [
+                        parser.OFPActionSetField(eth_dst=self.vms[self.current_vm]["mac"]),
+                        parser.OFPActionSetField(ipv4_dst=self.vms[self.current_vm]["local_ip"]),
+                        parser.OFPActionOutput(self.vms[self.current_vm]["ovs_port"])   
+                    ]
+                    
+                        match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80,tcp_src=tcp_src)
+                        self.add_flow(self.datapata,5, match, action_modify_headers,client.cookie)
+                        reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ip_src,ipv4_src=self.vms[self.current_vm]["local_ip"],tcp_dst=tcp_src)
+                    
+                        action_modify_headers_reverse = [
+                            parser.OFPActionSetField(eth_src=ovs_mac),
+                            parser.OFPActionSetField(ipv4_src=ovs_ip),
+                            parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
+                        ]
+
+                        self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,client.cookie)
 
                     out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                        in_port=self.vms[current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
+                                        in_port=self.vms[self.current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
                     datapath.send_msg(out)
                     self.add_base_rules(datapath,parser)
 
@@ -241,6 +268,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
+        self.datapath = datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         self.ofproto = ofproto
