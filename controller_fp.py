@@ -100,12 +100,27 @@ class FalseRealitySwitch(app_manager.RyuApp):
     def trigger_migration(self, attacker_ip):
         print(f"Triggering migration for attacker ip {attacker_ip}")
     
+    def delete_client_rules(self,datapath,client):
+        
+        print(f"deleting all rulles for client {client.name} cookie={client.cookie}")
+        mod = self.parser.OFPFlowMod(datapath=datapath,
+                                        cookie=client.cookie,
+                                        cookie_mask=1,
+                                        command=ofproto_v1_3.OFPFC_DELETE,
+                                        table_id = ofproto_v1_3.OFPTT_ALL,
+                                        out_port=ofproto_v1_3.OFPP_ANY,
+                                        out_group=ofproto_v1_3.OFPG_ANY)
+        datapath.send_msg(mod)
+    
+    def delete_all_client_rules(self,datapath):
+        
+        for client in self.clients.values():
+                self.delete_client_rules(datapath,client)
+
     def periodically_migrate(self,):
         while True:
             sleep(30)
             print("MIGRATING AT.....{}".format(time.ctime()))
-            for client in self.clients.values():
-                self.parser.OFPFlowMod(datapath=self.datapath,cookie=client.cookie,cookie_mask=-1,command=ofproto_v1_3.OFPFC_DELETE)
             self.migrator.migrate()  # 
             self.update_redirection_rules()
             print("\n\n\n")
@@ -115,7 +130,8 @@ class FalseRealitySwitch(app_manager.RyuApp):
     def update_redirection_rules(self,):
         current_vm = self.migrator.getCurrentHost()
         parser = self.parser
-       
+        
+            
        
         return
     
@@ -139,45 +155,6 @@ class FalseRealitySwitch(app_manager.RyuApp):
         else:
             print("disconnected")
        
-       
-    # @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
-    # def _packet_in_handler(self, ev):
-    #     msg = ev.msg
-    #     dp: Datapath = msg.datapath
-    #     ofproto: ofproto_v1_0 = dp.ofproto
-    #     parser: ofpParser = dp.ofproto_parser
-    #     pkt = packet.Packet(msg.data)
-    #     eth: ethernet.ethernet = pkt.get_protocol(ethernet.ethernet)
- 
-    #     if eth.ethertype == ether_types.ETH_TYPE_LLDP:
-    #         return
-        
-    #     ipv4_pkt:ipv4.ipv4 = pkt.get_protocol(ipv4.ipv4)
-    #     tcp_pkt:tcp.tcp = pkt.get_protocol(tcp.tcp)
-    #     return
-    #     if ipv4_pkt is not None and tcp_pkt is not None:
-    #         ip_src = ipv4_pkt.src
-    #         ip_dst = ipv4_pkt.dst
-    #         mac_src = eth.src
-    #         mac_dst = eth.dst
-    #         tcp_src = tcp_pkt.src_port
-    #         tcp_dst = tcp_pkt.dst_port
-    #         dpid = dp.id
-    #         self.logger.info("packet in %s %s %s %s", dpid, ip_src, ip_dst, msg.in_port)
-    #         actions = []
-    #         if ip_src == "72.227.182.113":
-    #             actions.append(parser.OFPActionSetNwSrc("192.122.236.113"))
-    #             actions.append(parser.OFPActionOutput(1))
-    #         elif ip_src == "10.10.1.1":
-    #             actions.append(parser.OFPActionSetNwSrc("192.122.236.113"))
-    #             actions.append(parser.OFPActionOutput(8))
-
-    #         #actions = [parser.OFPActionOutput(ofproto.OFPP_NORMAL)]
-    #         #match:ofpParser.OFPMatch = parser.OFPMatch()
-    #         #self.add_flow(dp,match,actions,priority=100,idle_timeout=0)
-
-    #         out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id, in_port=msg.in_port,actions=actions, data=msg.data)
-    #         dp.send_msg(out)
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -220,7 +197,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
                 if mac_src in self.clients:
                     client: Client = self.clients[mac_src]
                 if client is not None:
-
+                    self.delete_client_rules(datapath,client)
                     current_vm = self.migrator.getCurrentHost()
                     action_modify_headers = [
                         parser.OFPActionSetField(eth_dst=self.vms[current_vm]["mac"]),
@@ -244,7 +221,22 @@ class FalseRealitySwitch(app_manager.RyuApp):
                     out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                         in_port=self.vms[current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
                     datapath.send_msg(out)
+                    self.add_base_rules(datapath,parser)
 
+
+    def add_base_rules(self,datapath,parser):
+        print("adding base rules")
+        match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=1)
+        actions = [parser.OFPActionOutput(ofproto_v1_3.OFPP_NORMAL)]
+        self.add_flow(datapath, 100, match, actions)
+
+        match = self.parser.OFPMatch(eth_type=self.dl_type_arp)
+        actions = [parser.OFPActionOutput(ofproto_v1_3.OFPP_NORMAL)]
+        self.add_flow(datapath, 100, match, actions)
+
+        match = self.parser.OFPMatch()
+        actions = [parser.OFPActionOutput(ofproto_v1_3.OFPP_CONTROLLER)]
+        self.add_flow(datapath, 0, match, actions)
        
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -254,18 +246,10 @@ class FalseRealitySwitch(app_manager.RyuApp):
         self.ofproto = ofproto
         self.datapata=datapath
         self.parser: ofpParser = parser
-        self.parser.OFPFlowMod(datapath=self.datapath,command=ofproto_v1_3.OFPFC_DELETE)
-        match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=1)
-        actions = [parser.OFPActionOutput(ofproto.OFPP_NORMAL)]
-        self.add_flow(datapath, 100, match, actions)
 
-        match = self.parser.OFPMatch(eth_type=self.dl_type_arp)
-        actions = [parser.OFPActionOutput(ofproto.OFPP_NORMAL)]
-        self.add_flow(datapath, 100, match, actions)
-
-        match = self.parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
-        self.add_flow(datapath, 0, match, actions)
+        self.delete_all_client_rules(datapath)
+        self.add_base_rules(datapath,parser)
+       
 
         #for vm in self.vms:
             

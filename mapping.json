@@ -8,6 +8,7 @@
 	"clients": [
         {"ip":"10.10.1.6","interface":"eth1","mac":"02:4f:26:ff:5e:16","name":"client","cookie":1},
         {"ip":"10.10.1.7","interface":"eth2","mac":"02:d6:81:16:6e:96","name":"client2","cookie":2},
-        {"ip":"10.10.1.5","interface":"eth4","mac":"02:e0:67:27:93:60","name":"attacker","cookie":3}
+        {"ip":"10.10.1.5","interface":"eth4","mac":"02:e0:67:27:93:60","name":"attacker","cookie":3},
+        {"ip":"192.122.236.113","interface":"eth8","mac":"02:aa:2d:1e:ba:58","name":"proxy","cookie":4} 
 	]
 }
