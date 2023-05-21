@@ -15,7 +15,7 @@ from ryu.lib import dpid as dpid_lib
 import json 
 
 false_reality_switch_name = 'ControllerFP'
-url = '/falsereality/'
+url = '/falsereality/{attacker_ip}'
 
 class FalseRealitySwitch(app_manager.RyuApp):
     
@@ -37,8 +37,8 @@ class FalseRealitySwitch(app_manager.RyuApp):
               idle_timeout=idle_timeout, hard_timeout=hard_timeout, cookie=0, command=ofproto.OFPFC_ADD)
         dp.send_msg(mod)
 
-    def f(self):
-        print("called f")
+    def trigger_migration(self, attacker_ip):
+        print(f"Triggering migration for attacker ip {attacker_ip}")
 
     @set_ev_cls(dpset.EventDP, dpset.DPSET_EV_DISPATCHER)
     def handler_datapath(self, ev: dpset.EventDP):
@@ -106,22 +106,16 @@ class FalseRealitySwitchController(ControllerBase):
     def __init__(self, req, link, data, **config):
         super(FalseRealitySwitchController, self).__init__(req, link, data, **config)
         self.false_reality_switch_app = data[false_reality_switch_name]
-
+#,requirements={'attacker_ip': str}
     @route('falsereality', url, methods=['GET'])
     def f(self, req, **kwargs):
 
+        attacker_ip = req.path.rsplit('/')[2]
+
         switch_app: FalseRealitySwitch = self.false_reality_switch_app
-        switch_app.f()
+        switch_app.trigger_migration(attacker_ip)
     
-        #dpid = dpid_lib.str_to_dpid(kwargs['dpid'])
-
-        #if dpid not in switch_app.mac_to_port:
-            #return Response(status=404)
-
-        #mac_table = switch_app.mac_to_port.get(dpid, {})
-
-        body = json.dumps("HELLO WORLD")
-        return Response(content_type='application/json', body=body)
+        return Response()
 
     # @route('simpleswitch', url, methods=['PUT'],requirements={'dpid': dpid_lib.DPID_PATTERN})
     # def put_mac_table(self, req, **kwargs):
