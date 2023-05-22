@@ -199,6 +199,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
 
                 if self.attacker_ip != None and ip_src == self.attacker_ip:
                     self.add_attacker_rule(datapath,parser,self.attacker_cookie)
+                    return
 
                 if ip_dst == ovs_ip:
                     #tcp packets coming from current host

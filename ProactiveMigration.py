@@ -85,7 +85,7 @@ class Migrator:
                                             pscp_command,
                                             "cd /var/www/html/video1.mp4",
                                             "ls",
-                                            "sudo rm {}".format(file_path)])
+                                            f"sudo rm {file_path}"])
 
 
 
@@ -115,7 +115,7 @@ class Migrator:
                     f"INPUT: {cmd}\n \
                     OUTPUT: {line}"
                 )
-            return response
+            
 
     def getCurrentHost(self):
         return self.current_host
