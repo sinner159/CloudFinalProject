@@ -93,6 +93,19 @@ class Migrator:
         self.current_host = next_vm_host_name
         return (next_vm_host_name, next_vm_info)
 
+    # def find_video(self):
+    #     file_path = "/var/www/html/video1.mp4" 
+    #     for vm, info in self.vms.items():
+    #         host_dst = f"{info['user']}@{info['host']}:{file_path}"
+    #         pscp_command = f"pscp  -i {self.key_cred['putty_key']} -pw {self.key_cred['passphrase']} -P {info['port']} -ls {host_dst}"
+    #         logging.log(1,pscp_command)
+
+    #         host_client = self.getClient(info)
+    #         response = self.execute_commands(host_client,[pscp_command])
+    #         if response == True:
+    #             return vm
+    #         a=0
+
     def execute_commands(self,client, commands: List[str]):
         for cmd in commands:
             stdin, stdout, stderr = client.exec_command(cmd)
@@ -103,6 +116,7 @@ class Migrator:
                     f"INPUT: {cmd}\n \
                     OUTPUT: {line}"
                 )
+            return response
 
     def getCurrentHost(self):
         return self.current_host
