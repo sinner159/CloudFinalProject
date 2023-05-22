@@ -254,24 +254,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
                     parser.OFPActionOutput(in_port)  
                 ]
                 self.add_flow(self.datapata,200, reverse_match, action_modify_headers_reverse,cookie)
-                    # else:
-                    #     action_modify_headers = [
-                    #     parser.OFPActionSetField(eth_dst=self.vms[self.current_vm]["mac"]),
-                    #     parser.OFPActionSetField(ipv4_dst=self.vms[self.current_vm]["local_ip"]),
-                    #     parser.OFPActionOutput(self.vms[self.current_vm]["ovs_port"])   
-                    # ]
-                    
-                    #     match = parser.OFPMatch(eth_type=self.dl_type_ipv4, ipv4_dst=ovs_ip,ip_proto=6,tcp_dst=80,tcp_src=tcp_src)
-                    #     self.add_flow(self.datapata,5, match, action_modify_headers,client.cookie)
-                    #     reverse_match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=6,ipv4_dst=ip_src,ipv4_src=self.vms[self.current_vm]["local_ip"],tcp_dst=tcp_src)
-                    
-                    #     action_modify_headers_reverse = [
-                    #         parser.OFPActionSetField(eth_src=ovs_mac),
-                    #         parser.OFPActionSetField(ipv4_src=ovs_ip),
-                    #         parser.OFPActionOutput(in_port)   # send to port directed to dummy_vm
-                    #     ]
-
-                    #     self.add_flow(self.datapata,5, reverse_match, action_modify_headers_reverse,client.cookie)
+             
 
                 out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=self.vms[self.current_vm]["ovs_port"], actions=action_modify_headers, data=msg.data)
                 datapath.send_msg(out)
@@ -285,7 +268,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
         self.add_flow(self.datapata,200, match, action_modify_headers,cookie)
         
     def add_base_rules(self,datapath,parser):
-        print("adding base rules")
+        #print("adding base rules")
         match = self.parser.OFPMatch(eth_type=self.dl_type_ipv4,ip_proto=1)
         actions = [parser.OFPActionOutput(ofproto_v1_3.OFPP_NORMAL)]
         self.add_flow(datapath, 100, match, actions)
