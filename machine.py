@@ -1,29 +1,22 @@
 class Machine():
 
-    def __init__(self, ip, interface, mac, name, capture=None):
+    def __init__(self, ip, interface, mac, name):
         self.ip = ip
-        self.interface = interface, 
+        self.interface = interface
         self.mac = mac
         self.name = name
-        self.capture = capture
 
-    def monitor(self):
-        print(f"monitor started for {self.name} {self.ip} {self.interface}")
-        while True:
-            self.capture.sniff(timeout=5)
-            for packet in capture:
-                print(packet)
         
 class Client(Machine):
 
-    def __init__(self, ip, interface, mac,name,cookie, capture=None, is_suspicious=False,is_attacker=False):
-        super().__init__(ip, interface, mac, name, capture)
+    def __init__(self, ip, interface, mac,name,cookie, is_suspicious=False,is_attacker=False):
+        super().__init__(ip, interface, mac, name)
         self.is_suspicious = is_suspicious
         self.is_attacker = is_attacker
         self.cookie = cookie
 
 class Host(Machine):
     
-    def __init__(self, ip, interface, mac,name, capture=None,is_target=False):
-        super().__init__(ip, interface, mac, name, capture)
+    def __init__(self, ip, interface, mac,name, is_target=False):
+        super().__init__(ip, interface, mac, name)
         self.is_target = is_target

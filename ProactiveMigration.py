@@ -52,7 +52,7 @@ class Migrator:
                         )
         return client   #client.close()
     
-    def migrate(self,): # Host Source, Host Destination
+    def migrate(self,next_vm_host_name): # Host Source, Host Destination
         """
         1) SSH to current host
         2) Run pscp command to migrate
@@ -61,7 +61,6 @@ class Migrator:
         """
         current_vm_host_name = self.current_host
         current_vm_info = self.vms[self.current_host]
-        next_vm_host_name = self.chooseNextVM()
         next_vm_info = self.vms[next_vm_host_name]
         print("Migrating from {} ----> {}".format(current_vm_host_name, next_vm_host_name))
 
