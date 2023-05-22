@@ -138,7 +138,7 @@ class FalseRealitySwitch(app_manager.RyuApp):
 
     def periodically_migrate(self,):
         while True:
-            sleep(10)
+            sleep(30)
             print("MIGRATING AT.....{}".format(time.ctime()))
             self.migrator.migrate()  # 
             self.update_redirection_rules()
